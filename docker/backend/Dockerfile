@@ -23,11 +23,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy supervisor configuration
-COPY docker/backend/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
 # Create directory for supervisor logs
 RUN mkdir -p /var/log/supervisor
+
+# Create Laravel storage directory structure
+RUN mkdir -p storage/framework/{sessions,views,cache} \
+    && mkdir -p storage/logs \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 /var/www/html/storage
+
+# Copy supervisor configuration
+COPY docker/backend/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 

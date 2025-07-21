@@ -22,20 +22,26 @@ class PrometheusMiddleware
     {
         $response = $next($request);
 
+        // Get labels for metrics
+        $labels = [
+            'method' => $request->method(),
+            'path' => $request->route() ? $request->route()->uri() : 'unknown'
+        ];
+
         // Increment total requests counter
-        $this->registry->getCounter('app', 'http_requests_total')
-            ->inc();
+        $counter = $this->registry->getOrRegisterCounter('app', 'http_requests_total', 'Total number of HTTP requests', ['method', 'path']);
+        $counter->inc(1, $labels);
 
         // If error occurred, increment error counter
         if ($response instanceof Response && $response->getStatusCode() >= 500) {
-            $this->registry->getCounter('app', 'http_errors_total')
-                ->inc();
+            $errorCounter = $this->registry->getOrRegisterCounter('app', 'http_errors_total', 'Total number of HTTP 500 errors', ['method', 'path']);
+            $errorCounter->inc(1, $labels);
         }
 
         // Update application uptime
         $uptime = microtime(true) - $this->startTime;
-        $this->registry->getGauge('app', 'uptime_seconds')
-            ->set($uptime);
+        $gauge = $this->registry->getOrRegisterGauge('app', 'uptime_seconds', 'Application uptime in seconds', ['instance']);
+        $gauge->set($uptime, ['instance' => gethostname()]);
 
         return $response;
     }
