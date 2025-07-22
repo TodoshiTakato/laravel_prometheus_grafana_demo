@@ -21,13 +21,13 @@ class PrometheusServiceProvider extends ServiceProvider
         $registry = $this->app->make(CollectorRegistry::class);
         
         // Counter for total HTTP requests
-        $counter = $registry->getOrRegisterCounter('app', 'http_requests_total', 'Total number of HTTP requests', ['method', 'path']);
+        $counter = $registry->registerCounter('app', 'http_requests_total', 'Total number of HTTP requests', ['method', 'path']);
         
         // Counter for HTTP errors (500)
-        $errorCounter = $registry->getOrRegisterCounter('app', 'http_errors_total', 'Total number of HTTP 500 errors', ['method', 'path']);
+        $errorCounter = $registry->registerCounter('app', 'http_errors_total', 'Total number of HTTP 500 errors', ['method', 'path']);
         
         // Gauge for application uptime
-        $gauge = $registry->getOrRegisterGauge('app', 'uptime_seconds', 'Application uptime in seconds', ['instance']);
+        $gauge = $registry->registerGauge('app', 'uptime_seconds', 'Application uptime in seconds', ['instance']);
         $gauge->set(0, ['instance' => gethostname()]);
     }
 }

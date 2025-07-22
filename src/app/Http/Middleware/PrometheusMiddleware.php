@@ -28,20 +28,25 @@ class PrometheusMiddleware
             'path' => $request->route() ? $request->route()->uri() : 'unknown'
         ];
 
-        // Increment total requests counter
-        $counter = $this->registry->getOrRegisterCounter('app', 'http_requests_total', 'Total number of HTTP requests', ['method', 'path']);
-        $counter->inc(1, $labels);
+        try {
+            // Increment total requests counter
+            $counter = $this->registry->getCounter('app', 'http_requests_total');
+            $counter->inc($labels);
 
-        // If error occurred, increment error counter
-        if ($response instanceof Response && $response->getStatusCode() >= 500) {
-            $errorCounter = $this->registry->getOrRegisterCounter('app', 'http_errors_total', 'Total number of HTTP 500 errors', ['method', 'path']);
-            $errorCounter->inc(1, $labels);
+            // If error occurred, increment error counter
+            if ($response instanceof Response && $response->getStatusCode() >= 500) {
+                $errorCounter = $this->registry->getCounter('app', 'http_errors_total');
+                $errorCounter->inc($labels);
+            }
+
+            // Update application uptime
+            $uptime = microtime(true) - $this->startTime;
+            $gauge = $this->registry->getGauge('app', 'uptime_seconds');
+            $gauge->set($uptime, ['instance' => gethostname()]);
+        } catch (\Exception $e) {
+            // Log error but don't break the application
+            error_log("Prometheus error: " . $e->getMessage());
         }
-
-        // Update application uptime
-        $uptime = microtime(true) - $this->startTime;
-        $gauge = $this->registry->getOrRegisterGauge('app', 'uptime_seconds', 'Application uptime in seconds', ['instance']);
-        $gauge->set($uptime, ['instance' => gethostname()]);
 
         return $response;
     }

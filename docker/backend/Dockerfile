@@ -1,39 +1,46 @@
-FROM php:8.3-fpm
+FROM php:8.3-fpm-alpine
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    supervisor
+ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 
-# Clear cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+ARG USER=ns
+ARG UID=1000
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
-# Get latest Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
 WORKDIR /var/www/html
 
-# Create directory for supervisor logs
-RUN mkdir -p /var/log/supervisor
+# Install dependencies and extensions
+RUN set -x && \
+    chmod +x /usr/local/bin/install-php-extensions && \
+    apk add --no-cache \
+        supervisor \
+        nano \
+        curl \
+        fcgi \
+    && install-php-extensions \
+        pdo_mysql \
+        mbstring \
+        exif \
+        pcntl \
+        bcmath \
+        gd \
+        @composer \
+    # Create user with same UID as host
+    && addgroup -S ${USER} && \
+    adduser -S ${USER} -G www-data -h /var/www/html -u ${UID} && \
+    adduser ${USER} root && \
+    # Create supervisor directory and set permissions
+    mkdir -p /var/log/supervisor && \
+    chown -R ${USER}:${USER} /var/log/supervisor
 
-# Create Laravel storage directory structure
-RUN mkdir -p storage/framework/{sessions,views,cache} \
-    && mkdir -p storage/logs \
-    && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 /var/www/html/storage
-
-# Copy supervisor configuration
+# Copy configurations
+COPY docker/backend/php.ini /usr/local/etc/php/conf.d/custom.ini
 COPY docker/backend/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Switch to non-root user
+USER ${USER}
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+    CMD SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 || exit 1
 
 # Start supervisor
 CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
